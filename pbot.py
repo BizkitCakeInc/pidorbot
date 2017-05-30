@@ -1,56 +1,53 @@
 import discord
-import asyncio
-import random
-import time
-from datetime import datetime
+import internal_db
+import internal_api
+import config as cfg
 
 client = discord.Client()
 user = discord.User()
-# server = discord.Server()
+indb = internal_db.InternalDB()
+inapi = internal_api.InternalAPI()
 
 @client.event
 async def on_ready():
     print('Logged in as ' + client.user.name + '. CLIENT_ID: ' + client.user.id)
     print('------')
+    print('Initiating pidors list')
+    pidors = await prepare_dict_from_members()
+    print('Performing db initialize...')
+    indb.initial_connection_to_database()
     print('Performing initial import of members...')
-    global pidors
-    pidors = await initial_members_checklist()
+    indb.initialize_import_to_database(pidors)
     print('------')
-    print('Performing file creation...')
-
 
 @client.event
 async def on_message(message):
+    pidors = await prepare_dict_from_members()
 
+    #pidor
+    if message.content.startswith('pidor') or message.content.startswith('пидор'):
+        pid = inapi.choose_pidor_randomly(pidors)
+        indb.increase_being_pidor_value(pid)
+        indb.update_activity_table(pid)
+        await client.send_message(message.channel, '<@' + str(pid) + '>')
 
-
-    if message.content.startswith('pidor'):
-        for i in pidors:
-            await client.send_message(message.channel, '<@' + str(i) + '>')
-            await client.send_message(message.channel, 'pong')
-
-    # Default value to check that bot works at least
+    #ping
     if message.content.startswith('ping'):
         await client.send_message(message.channel, 'pong')
 
 # Get all current members
-async def initial_members_checklist():
+async def prepare_dict_from_members():
     members_data = {}
     for server in client.servers:
         for member in server.members:
-            members_data[member.id] = {'name': member.name,
-                                       'display_name': member.name + '#' + member.discriminator,
-                                       'bot': member.bot,
-                                       'created_at': str(member.created_at)}
+            if member.bot is False:
+                members_data[member.id] = {'name': member.name,
+                                           'display_name': member.name + '#' + member.discriminator,
+                                           'bot': member.bot,
+                                           'created_at': str(member.created_at)}
     if members_data != {}:
-        print('Initial checklist verified successfully.')
-        return member
+        return members_data
     else:
         raise ValueError
-    return members_data
 
-client.run('MzE2OTI5MTUzNTIzOTA4NjA4.DAceDA.mkmAzQzSMyo8hjDBMoKLgAvBRlM')
-
-
-# client_id = '316929153523908608'
-# token = 'RXA80TFw6oPd4wVYx3uMINxXoQXdju_h'
+client.run(cfg.discord_client_token)
